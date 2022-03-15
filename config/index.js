@@ -16,7 +16,7 @@ const config = {
         updatePeriod: parseInt(parsedEnv.SCORE_UPDATE_TASK_PERIOD)
     },
     api: {
-        port: parseInt(parsedEnv.API_PORT)
+        port: parseInt(parsedEnv.API_PORT ?? 3000)
     }
 };
 

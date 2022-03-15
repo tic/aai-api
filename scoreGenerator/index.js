@@ -60,6 +60,6 @@ async function stopPeriodicTask(task) {
 // Export the periodic task control
 // functions with shorter names.
 module.exports = {
-    init: startPeriodicTask,
+    init: runPeriodicTask,
     stop: stopPeriodicTask
 }
