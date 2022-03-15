@@ -1,0 +1,24 @@
+{
+  "name": "aai-api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tic/aai-api.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tic/aai-api/issues"
+  },
+  "homepage": "https://github.com/tic/aai-api#readme",
+  "dependencies": {
+    "@influxdata/influxdb-client": "^1.23.0",
+    "dotenv": "^16.0.0"
+  }
+}
