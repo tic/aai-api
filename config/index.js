@@ -5,6 +5,7 @@ const { parsed: parsedEnv } = require("dotenv").config();
 // Define the config in a user-friendly way.
 const config = {
     influx: {
+        protocol: parsedEnv.INFLUX_PROTOCOL,
         host: parsedEnv.INFLUX_HOST,
         port: parsedEnv.INFLUX_PORT,
         databaseName: parsedEnv.INFLUX_DB,

@@ -1,17 +1,29 @@
-// TODO
-// Needs to login to the database and export something
-// that lets you query. Files importing this one will
-// try to run db.query(..), so the export needs to be
-// sure to define query.
+// Import the influx config.
+const { influx: influxConfig } = require("../config");
 
 
-// This might require token management: https://github.com/influxdata/influxdb-client-js/blob/master/examples/tokens.js
-// Other Influx client examples: https://github.com/influxdata/influxdb-client-js/tree/master/examples
+// Import the Influx library and
+// connect to the LLL database.
+const Influx = require("influx");
+const influxdb = new Influx.InfluxDB(`${influxConfig.protocol}://${influxConfig.username}:${influxConfig.passwd}@${influxConfig.host}:${influxConfig.port}/${influxConfig.databaseName}`);
+console.log(`connecting to influx at ${influxConfig.protocol}://${influxConfig.username}:*****@${influxConfig.host}:${influxConfig.port}/${influxConfig.databaseName}`);
 
 
+// Export a db querying function.
 module.exports = {
-    // TODO
-    query: async function() {
-        console.log("Implement me! -db.query");
+    query: async function(queryText) {
+        try {
+            const result = await influxdb.query(queryText);
+            return {
+                success: true,
+                result
+            };
+        } catch(err) {
+            console.error(err);
+            return {
+                success: false,
+                error: err
+            }
+        }
     }
 };
