@@ -14,6 +14,13 @@ apiServer.listen(
 );
 
 
+// Import and launch the score generator.
+const updater = require("./scoreGenerator");
+var taskRef = updater.init();
+console.log("started score generator task (%s)", taskRef);
+// Later on, call await updater.stop(taskRef); to stop.
+
+
 // This is an example of how to use
 // the database query mechanism. If
 // you want to try it, just uncomment.
