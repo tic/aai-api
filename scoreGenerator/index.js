@@ -97,7 +97,7 @@ async function periodicScoreUpdater() {
                 // Compute our new scores
                 const reportedScores = [
                     ["balanced", "v0"]
-                ].map(args => ["scoreTest_v0"/*args.join("_")/**/, score(args[0], args[1], metricValues)]);
+                ].map(args => [args.join("_"), score(args[0], args[1], metricValues)]);
 
                 // Create an influx point with the data
                 return dataToInfluxPoint({
