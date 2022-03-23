@@ -10,7 +10,8 @@ const config = {
         port: parsedEnv.INFLUX_PORT,
         databaseName: parsedEnv.INFLUX_DB,
         username: parsedEnv.INFLUX_USER,
-        passwd: parsedEnv.INFLUX_PASSWD
+        passwd: parsedEnv.INFLUX_PASSWD,
+        doWrites: parsedEnv.INFLUX_DO_WRITE === "true"
     },
     scoring: {
         precision: parseInt(parsedEnv.SCORE_PRECISION),
@@ -18,6 +19,9 @@ const config = {
     },
     api: {
         port: parseInt(parsedEnv.API_PORT ?? 3000)
+    },
+    scoreTask: {
+        measurement: parsedEnv.MEASUREMENT_NAME
     }
 };
 

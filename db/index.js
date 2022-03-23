@@ -23,7 +23,36 @@ module.exports = {
             return {
                 success: false,
                 error: err
+            };
+        }
+    },
+    write: async function(pointsArr) {
+        try {
+            pointsArr.map(point => {
+                Object.keys(point.fields).map(field => {
+                    if( !/^[0-9A-Za-z]+\_v\d+$/.test(field) ) {
+                        throw new Error(`all fields should be someString_vX (${field})`);
+                    }
+                })
+            });
+
+            let result;
+            if(influxConfig.doWrites) {
+                console.log("writes enabled. executing query");
+                result = await influxdb.writePoints(pointsArr);
+            } else {
+                console.log("writes disabled. logging instead");
+                console.log(pointsArr);
             }
+            return {
+                success: true
+            };
+        } catch(err) {
+            console.error(err);
+            return {
+                success: false,
+                error: err
+            };
         }
     }
 };
