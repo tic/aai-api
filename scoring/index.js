@@ -1,10 +1,16 @@
 // Import what we need from the config file.
 const { scoring: { precision: scorePrecision } } = require("../config");
-
+const exponent = 10 ** scorePrecision;
 
 // Contains functions which compute scores given
 // component air quality metrics (temp, voc, etc).
 const subscore = require("./subscores");
+
+
+// Helper function to do rounding
+function precision(value) {
+    return parseInt(value * exponent) / exponent;
+}
 
 
 // Averages all component subscores for
@@ -17,8 +23,8 @@ function balancedAQI(temperatureC, humidityPct, co2Ppm, vocPpb, pm25UgL) {
         + subscore.getVocSubscore(vocPpb)
         + subscore.getPm25Subscore(pm25UgL)
     ) / 5;
-
-    return parseFloat(rawScore.toPrecision(scorePrecision));
+    
+    return precision(rawScore);
 }
 
 
@@ -36,9 +42,47 @@ function environmentalAQI() {
 }
 
 
-// Export our scoring functions.
-module.exports = {
-    balancedAQI: balancedAQI,
-    occupationalAQI: occupationalAQI,
-    environmentalAQI: environmentalAQI
-};
+// 
+// =============================================================================
+// 
+
+
+// Organize the score functions.
+const scoreFunctions = {
+    balanced: {
+        v0: balancedAQI
+    },
+    occupational: {
+        v0: occupationalAQI
+    },
+    environmental: {
+        v0: environmentalAQI
+    }
+}
+
+
+// Report usable scoring functions 
+// and their versions to the console
+console.log(
+    "loaded %d scoring functions: \n%s", 
+    Object.keys(scoreFunctions).length,
+    ...Object.keys(scoreFunctions)
+        .map(scoreType => 
+            `\t"${scoreType}" with versions: ${Object.keys(scoreFunctions[scoreType])}\n`
+        )
+);
+
+
+// The master scoring function.
+function score(name, version, params) {
+    const func = scoreFunctions[name]?.[version];
+    if(func === undefined) {
+        throw new Error(`unknown scoring function/version combination: "${name} ${version}". see console for known scoring functions and versions`);
+    } else {
+        return func(...params);
+    }
+}
+
+
+// Export the scoring function.
+module.exports = score;

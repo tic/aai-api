@@ -1,5 +1,8 @@
 // Import what we need from the config file.
-const { scoring: { updatePeriod } } = require("../config");
+const { 
+    scoring: { updatePeriod }, 
+    scoreTask: { measurement: influxMeasurementName } 
+} = require("../config");
 
 
 // Import our database module.
@@ -12,6 +15,28 @@ const score = require("../scoring");
 
 // Control variable for the periodic task.
 var continueTask = false;
+
+
+// Helper function to log metric data
+function logMetricData(mac, metricValues) {
+    console.log(
+        "%s: %s °C, \t%s\%, \t%s ppm, \t%s ppb, \t%s μg/m3",
+        mac,
+        ...metricValues.map(mv => (parseInt(mv * 1000) / 1000).toPrecision(6)),
+    );
+}
+
+// Helper function to generate influx points
+function dataToInfluxPoint(data) {
+    return {
+        measurement: influxMeasurementName,
+        tags: {
+            // device_id is lower case by convention in gateway-generic
+            device_id: data.mac_address.toLowerCase()
+        },
+        fields: data.fields
+    };
+}
 
 
 // Future location of the periodic task which fetches
@@ -58,26 +83,37 @@ async function periodicScoreUpdater() {
         );
 
         // For each mac address, compute and store our scores.
-        await Promise.all(
+        const influxPointsRaw = await Promise.all(
             macs.map(mac => {
                 const metricValues = metrics.map(metric => metric[mac]);
                 if(metricValues.indexOf(undefined) > -1) {
-                    console.log("missing metric data for device %s", mac);
-                    return;
+                    // console.log("missing metric data for device %s", mac);
+                    return false;
                 }
 
-                console.log(
-                    "%s: %d °C, \t%d\%, \t%d ppm, \t%d ppb, \t%d μg/m3",
-                    mac,
-                    ...metricValues.map(mv => parseInt(mv * 1000) / 1000),
-                );
+                // Log the received data
+                // logMetricData(mac, metricValues);
 
-                console.log(
-                    "balancedAQI: %d",
-                    score.balancedAQI(...metricValues)
-                );
+                // Compute our new scores
+                const reportedScores = [
+                    ["balanced", "v0"]
+                ].map(args => ["scoreTest_v0"/*args.join("_")/**/, score(args[0], args[1], metricValues)]);
+
+                // Create an influx point with the data
+                return dataToInfluxPoint({
+                    mac_address: mac,
+                    fields: reportedScores.reduce((acc, [seriesName, score]) => {
+                        acc[seriesName] = score;
+                        return acc;
+                    }, {})
+                });
             })
         );
+        
+        const result = await db.write(
+            influxPointsRaw.filter(p => p !== false)
+        );
+        console.log(result);
     } catch(err) {
         console.error(err);
     }
@@ -98,7 +134,7 @@ async function runPeriodicTask() {
     while(continueTask) {
         // Invoke the periodic updater.
         await periodicScoreUpdater();
-
+        return true; //=============================================================== DELETE ME
         // Once the task is complete, wait for the required time.
         await new Promise((res,) => setTimeout(res, updatePeriod));
     }
