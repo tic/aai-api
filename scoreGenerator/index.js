@@ -92,7 +92,7 @@ async function periodicScoreUpdater() {
                 }
 
                 // Log the received data
-                // logMetricData(mac, metricValues);
+                logMetricData(mac, metricValues);
 
                 // Compute our new scores
                 const reportedScores = [

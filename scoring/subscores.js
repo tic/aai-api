@@ -18,9 +18,10 @@ function getHumiditySubscore(humidityPct) {
 
 // CO2 subscore calculation
 function getCo2Subscore(co2Ppm) {
+    const preSquareTerm = ((co2Ppm / 100) - 50);
     return Math.min(
         100, 
-        0.434 * ((co2Ppm / 100) - 50)^2
+        0.0499 * preSquareTerm * preSquareTerm
     );
 }
 
@@ -33,7 +34,7 @@ function getVocSubscore(vocPpb) {
 
 // PM2.5 subscore calculation
 function getPm25Subscore(pm25UgL) {
-    return 100 * Math.exp(0.008 * pm25UgL);
+    return 100 * Math.exp(-0.008 * pm25UgL);
 }
 
 module.exports = {

@@ -17,13 +17,12 @@ function precision(value) {
 // a somewhat blended sort of AQI.
 function balancedAQI(temperatureC, humidityPct, co2Ppm, vocPpb, pm25UgL) {
     const rawScore = (
-        subscore.getTemperatureSubscore(temperatureC)
-        + subscore.getHumiditySubscore(humidityPct)
-        + subscore.getCo2Subscore(co2Ppm)
-        + subscore.getVocSubscore(vocPpb)
-        + subscore.getPm25Subscore(pm25UgL)
+        subscore.getTemperatureSubscore(temperatureC) +
+        subscore.getHumiditySubscore(humidityPct) +
+        subscore.getCo2Subscore(co2Ppm) +
+        subscore.getVocSubscore(vocPpb) +
+        subscore.getPm25Subscore(pm25UgL)
     ) / 5;
-    
     return precision(rawScore);
 }
 
