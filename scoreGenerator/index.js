@@ -96,7 +96,9 @@ async function periodicScoreUpdater() {
 
                 // Compute our new scores
                 const reportedScores = [
-                    ["balanced", "v0"]
+                    ["balanced", "v0"],
+                    ["occupational", "v0"],
+                    ["environmental", "v0"],
                 ].map(args => [args.join("_"), score(args[0], args[1], metricValues)]);
 
                 // Create an influx point with the data
@@ -134,7 +136,6 @@ async function runPeriodicTask() {
     while(continueTask) {
         // Invoke the periodic updater.
         await periodicScoreUpdater();
-        return true; //=============================================================== DELETE ME
         // Once the task is complete, wait for the required time.
         await new Promise((res,) => setTimeout(res, updatePeriod));
     }

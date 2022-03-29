@@ -28,17 +28,31 @@ function balancedAQI(temperatureC, humidityPct, co2Ppm, vocPpb, pm25UgL) {
 }
 
 
-// Todo
-function occupationalAQI() {
-
-    return 0;
+// This is the occupational AQI distribution we
+// did in the final project for S&HB in Fall 2021.
+function occupationalAQIF21(temperatureC, humidityPct, co2Ppm, vocPpb, pm25UgL) {
+    const rawScore = (
+        0.050 * subscore.getTemperatureSubscore(temperatureC) +
+        0.150 * subscore.getHumiditySubscore(humidityPct) +
+        0.325 * subscore.getCo2Subscore(co2Ppm) +
+        0.325 * subscore.getVocSubscore(vocPpb) +
+        0.150 * subscore.getPm25Subscore(pm25UgL)
+    );
+    return precision(rawScore);
 }
 
 
-// Todo
-function environmentalAQI() {
-
-    return 0;
+// This is the environmental AQI distribution we
+// did in the final project for S&HB in Fall 2021.
+function environmentalAQIF21(temperatureC, humidityPct, co2Ppm, vocPpb, pm25UgL) {
+    const rawScore = (
+      0.250 * subscore.getTemperatureSubscore(temperatureC) +
+      0.300 * subscore.getHumiditySubscore(humidityPct) +
+      0.050 * subscore.getCo2Subscore(co2Ppm) +
+      0.100 * subscore.getVocSubscore(vocPpb) +
+      0.300 * subscore.getPm25Subscore(pm25UgL)
+  );
+  return precision(rawScore);
 }
 
 
@@ -53,10 +67,10 @@ const scoreFunctions = {
         v0: balancedAQI
     },
     occupational: {
-        v0: occupationalAQI
+        v0: occupationalAQIF21
     },
     environmental: {
-        v0: environmentalAQI
+        v0: environmentalAQIF21
     }
 }
 
