@@ -7,7 +7,7 @@ const { influx: influxConfig } = require("../config");
 const Influx = require("influx");
 const influxdb = new Influx.InfluxDB(`${influxConfig.protocol}://${influxConfig.username}:${influxConfig.passwd}@${influxConfig.host}:${influxConfig.port}/${influxConfig.databaseName}`);
 console.log(`connecting to influx at ${influxConfig.protocol}://${influxConfig.username}:*****@${influxConfig.host}:${influxConfig.port}/${influxConfig.databaseName}`);
-
+console.log("==============================================\nCODE REQUIRES MODIFIED LIBRARY FUNCTION\n@npm/influx/lib/src/index.js\nLine 857:\n --->>> path: options.publishPath ?? \"/write\",\n==============================================\n");
 
 // Export a db querying function.
 module.exports = {
@@ -39,7 +39,10 @@ module.exports = {
             let result;
             if(influxConfig.doWrites) {
                 console.log("writes enabled. executing query");
-                result = await influxdb.writePoints(pointsArr);
+                result = await influxdb.writePoints(
+                    pointsArr,
+                    {publishPath: "/gateway/write"}
+                );
             } else {
                 console.log("writes disabled. logging instead");
                 console.log(pointsArr);
