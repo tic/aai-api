@@ -32,7 +32,7 @@ function dataToInfluxPoint(data) {
         measurement: influxMeasurementName,
         tags: {
             // device_id is lower case by convention in gateway-generic
-            device_id: data.mac_address.toLowerCase()
+            device_id: data.device_id.toLowerCase()
         },
         fields: data.fields
     };
@@ -45,23 +45,6 @@ function dataToInfluxPoint(data) {
 async function periodicScoreUpdater() {
     try {
         console.log("task iteration started");
-        // Collect a list of mac addresses that have reported
-        // data between now and the previous score update.
-        const macs = await db.query(`
-            SELECT 
-                time, value, awair_mac_address 
-            FROM "awair_score" 
-            WHERE 
-                awair_mac_address != '' AND time > now() - ${parseInt(updatePeriod / 1000)}s 
-            GROUP BY awair_mac_address
-            LIMIT 1
-        `).then(resp => {
-            if(!resp.success) {
-                console.error(resp.error)
-                return [];
-            }
-            return resp.result.map(r => r.awair_mac_address);
-        });
 
         // Query for the metrics for each category
         const metrics = await Promise.all(
@@ -71,28 +54,39 @@ async function periodicScoreUpdater() {
                     MEAN(value)
                 FROM "${metric}"
                 WHERE
-                    awair_mac_address != '' AND time > now() - ${parseInt(updatePeriod / 1000)}s 
-                GROUP BY awair_mac_address
+                    time > now() - ${parseInt(updatePeriod / 1000)}s 
+                GROUP BY device_id
                 `);
-                const macMap = {};
-                for(const { mean, awair_mac_address } of dbResult.result) {
-                    macMap[awair_mac_address] = mean;
+                const deviceIdMap = {};
+                for(const { mean, device_id } of dbResult.result) {
+                    deviceIdMap[device_id] = mean;
                 }
-                return macMap;
+                return deviceIdMap;
             })
         );
 
-        // For each mac address, compute and store our scores.
-        const influxPointsRaw = await Promise.all(
-            macs.map(mac => {
-                const metricValues = metrics.map(metric => metric[mac]);
-                if(metricValues.indexOf(undefined) > -1) {
-                    // console.log("missing metric data for device %s", mac);
+        // This takes the results from the first set
+        // of queries and manipulates them into a
+        // more useful data structure.
+        const groupedMetrics = 
+            Object.keys(metrics[0])
+            .map(device_id => [
+                device_id,
+                ...metrics.map(metricList => metricList[device_id])
+            ])
+            .filter(([device_id, ...metricTuple]) => {
+                if(metricTuple.indexOf(undefined) > -1) {
+                    console.log("missing metric data for device %s", device_id);
                     return false;
                 }
+                return true;
+            });
 
+        // For each mac address, compute and store our scores.
+        const influxPointsRaw = await Promise.all(
+            groupedMetrics.map(([device_id, ...metricValues]) => {
                 // Log the received data
-                logMetricData(mac, metricValues);
+                logMetricData(device_id, metricValues);
 
                 // Compute our new scores
                 const reportedScores = [
@@ -103,7 +97,7 @@ async function periodicScoreUpdater() {
 
                 // Create an influx point with the data
                 return dataToInfluxPoint({
-                    mac_address: mac,
+                    device_id,
                     fields: reportedScores.reduce((acc, [seriesName, score]) => {
                         acc[seriesName] = score;
                         return acc;
@@ -112,6 +106,7 @@ async function periodicScoreUpdater() {
             })
         );
         
+        // Send the results to influx
         const result = await db.write(
             influxPointsRaw.filter(p => p !== false)
         );
