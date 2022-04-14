@@ -4,14 +4,6 @@ const response = require("./responses");
 
 // Import the database query interface.
 const db = require("../../db");
-const { http200 } = require("./responses");
-
-
-// Function to check if a mac address looks
-// like an Awair mac address.
-function isAwairMac(address) {
-    return /^70886B[\dA-Z]{6}$/i.test(address);
-}
 
 
 // Simple endpoint to prove the API is
@@ -35,14 +27,7 @@ async function originalAwairScoreInLastMinutes(req, res) {
             return;
         }
 
-        if(!isAwairMac(req.params.macAddress)) {
-            res.respond(new response.http400({
-                message: "The provided MAC address does not match the expected format of Awair device MAC addresses: `70886B......`"
-            }));
-            return;
-        }
-
-        const queryStr = `SELECT time, value FROM "awair_score" WHERE awair_mac_address='${req.params.macAddress}' AND time > now() - ${minutes}m`;
+        const queryStr = `SELECT time, value FROM "awair_score" WHERE device_id='${req.params.device_id}' AND time > now() - ${minutes}m`;
         const dbResult = await db.query(queryStr);
 
         if(!dbResult.success) {
@@ -82,14 +67,7 @@ async function originalAwairScoreLastX(req, res) {
             return;
         }
 
-        if(!isAwairMac(req.params.macAddress)) {
-            res.respond(new response.http400({
-                message: "The provided MAC address does not match the expected format of Awair device MAC addresses: `70886B......`"
-            }));
-            return;
-        }
-
-        const queryStr = `SELECT time, value FROM "awair_score" WHERE awair_mac_address='${req.params.macAddress}' LIMIT ${x}`;
+        const queryStr = `SELECT time, value FROM "awair_score" WHERE device_id='${req.params.device_id}' LIMIT ${x}`;
         const dbResult = await db.query(queryStr);
 
         if(!dbResult.success) {
@@ -129,14 +107,7 @@ async function originalAwairScoreTimeAggregationMinutes(req, res) {
             return;
         }
 
-        if(!isAwairMac(req.params.macAddress)) {
-            res.respond(new response.http400({
-                message: "The provided MAC address does not match the expected format of Awair device MAC addresses: `70886B......`"
-            }));
-            return;
-        }
-
-        const queryStr = `SELECT MEAN(value) FROM "awair_score" WHERE awair_mac_address='${req.params.macAddress}' AND time > now() - ${minutes}m`;
+        const queryStr = `SELECT MEAN(value) FROM "awair_score" WHERE device_id='${req.params.device_id}' AND time > now() - ${minutes}m`;
         const dbResult = await db.query(queryStr);
 
         if(!dbResult.success) {
@@ -168,11 +139,66 @@ async function originalAwairScoreTimeAggregationMinutes(req, res) {
 }
 
 
+// Get AVERAGE custom scores over
+// over the last x minutes (min. 5)
+async function customScoresLastX(req, res) {
+    try {
+        let parsedMin = parseInt(req.params.minutes);
+
+        // The minimum window size is 5 minutes. If
+        // a smaller window is requested, there might
+        // not be any custom scores available...
+        const minutes = parsedMin < 5 ? 5: parsedMin;
+        if(isNaN(minutes)) {
+            res.respond(new response.http400({
+                message: "Unable to parse a number out of the `minutes` path parameter. Did you provide a number?"
+            }));
+            return;
+        }
+
+        const queryStr = `SELECT MEAN(*) FROM "awair_informed" WHERE device_id='${req.params.device_id}' AND time > now() - ${minutes}m`;
+        const dbResult = await db.query(queryStr);
+
+        if(!dbResult.success) {
+            console.error("unexpected database error:\n%s", dbResult.error);
+            res.respond(new response.http500({
+                message: "failed to execute database query"
+            }));
+            return;
+        }
+
+        if(dbResult.result.length === 0) {
+            res.respond(new response.http404({
+                message: "no data in the specified time range"
+            }));
+            return;
+        }
+
+        const mappedResults = {};
+        for(const row of dbResult.result) {
+            console.log(row);
+        }
+
+        res.respond(new response.http200({
+            raw: dbResult.result
+        }));
+
+    } catch(err) {
+        console.error("unexpected error:\n%s", err);
+        res.respond(new response.http500({
+            message: "The server could not process the request."
+        }));
+        return;
+    }
+}
+
+
 // Assign the endpoint implementations
 // to their actual respective URLs.
 module.exports = function(server, prefix) {
     server.get(prefix + "/", healthCheck);
-    server.get(prefix + "/score/:macAddress/minutes/:minutes", originalAwairScoreInLastMinutes);
-    server.get(prefix + "/score/:macAddress/last/:x", originalAwairScoreLastX);
-    server.get(prefix + "/score/:macAddress/average/minutes/:minutes", originalAwairScoreTimeAggregationMinutes);
+    server.get(prefix + "/awair-score/:device_id/minutes/:minutes", originalAwairScoreInLastMinutes);
+    server.get(prefix + "/awair-score/:device_id/last/:x", originalAwairScoreLastX);
+    server.get(prefix + "/awair-score/:device_id/average/minutes/:minutes", originalAwairScoreTimeAggregationMinutes);
+    server.get(prefix + "/custom-score/:device_id/average/minutes/:minutes", customScoresLastX);
 }
