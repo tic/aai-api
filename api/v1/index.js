@@ -174,13 +174,26 @@ async function customScoresLastX(req, res) {
             return;
         }
 
-        const mappedResults = {};
-        for(const row of dbResult.result) {
-            console.log(row);
-        }
+        const transformedData = 
+            Object
+            .entries(dbResult.result[0])
+            .map(([key, value]) => {
+                if(key === "time") {
+                    return null;
+                }
+                const [, scoreType, version] = key.split("_");
+                return {
+                    algorithm: {
+                        name: scoreType,
+                        version: parseInt(version.substring(1))
+                    },
+                    value
+                };
+            })
+            .filter(r => r !== null);
 
         res.respond(new response.http200({
-            raw: dbResult.result
+            data: transformedData
         }));
 
     } catch(err) {
@@ -197,8 +210,11 @@ async function customScoresLastX(req, res) {
 // to their actual respective URLs.
 module.exports = function(server, prefix) {
     server.get(prefix + "/", healthCheck);
+    // These are probably not very useful
     server.get(prefix + "/awair-score/:device_id/minutes/:minutes", originalAwairScoreInLastMinutes);
     server.get(prefix + "/awair-score/:device_id/last/:x", originalAwairScoreLastX);
+
+    // These are pretty useful
     server.get(prefix + "/awair-score/:device_id/average/minutes/:minutes", originalAwairScoreTimeAggregationMinutes);
     server.get(prefix + "/custom-score/:device_id/average/minutes/:minutes", customScoresLastX);
 }
