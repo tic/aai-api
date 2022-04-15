@@ -7,6 +7,7 @@ const server = require("express")();
 server.use("/", (req, res, next) => {
     res.respond = function(responseObject) {
         res.status(responseObject.code);
+        res.header("Access-Control-Allow-Origin", "*");
         res.json(responseObject.response);
     }
     next();
