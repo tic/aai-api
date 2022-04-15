@@ -107,7 +107,7 @@ async function originalAwairScoreTimeAggregationMinutes(req, res) {
             return;
         }
 
-        const queryStr = `SELECT MEAN(value) FROM "awair_score" WHERE device_id='${req.params.device_id}' AND time > now() - ${minutes}m`;
+        const queryStr = `SELECT MEAN(value) FROM "awair_score" WHERE device_id='${req.params.device_id}' AND time > now() - ${minutes}m GROUP BY location_specific, details, description`;
         const dbResult = await db.query(queryStr);
 
         if(!dbResult.success) {
@@ -126,7 +126,10 @@ async function originalAwairScoreTimeAggregationMinutes(req, res) {
         }
 
         res.respond(new response.http200({
-            averageScore: dbResult.result[0].mean
+            averageScore: dbResult.result[0].mean,
+            location: dbResult.result[0].location_specific,
+            description: dbResult.result[0].description,
+            details: dbResult.result[0].details
         }));
 
     } catch(err) {
@@ -156,7 +159,7 @@ async function customScoresLastX(req, res) {
             return;
         }
 
-        const queryStr = `SELECT MEAN(*) FROM "awair_informed" WHERE device_id='${req.params.device_id}' AND time > now() - ${minutes}m`;
+        const queryStr = `SELECT MEAN(*) FROM "awair_informed" WHERE device_id='${req.params.device_id}' AND time > now() - ${minutes}m GROUP BY location_specific, details, description`;
         const dbResult = await db.query(queryStr);
 
         if(!dbResult.success) {
@@ -174,6 +177,10 @@ async function customScoresLastX(req, res) {
             return;
         }
 
+        const { location_specific, description, details } = dbResult.result[0];
+        delete dbResult.result[0].location_specific;
+        delete dbResult.result[0].description;
+        delete dbResult.result[0].details
         const transformedData = 
             Object
             .entries(dbResult.result[0])
@@ -193,7 +200,10 @@ async function customScoresLastX(req, res) {
             .filter(r => r !== null);
 
         res.respond(new response.http200({
-            data: transformedData
+            data: transformedData,
+            location: location_specific,
+            description,
+            details
         }));
 
     } catch(err) {
