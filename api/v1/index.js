@@ -216,6 +216,53 @@ async function customScoresLastX(req, res) {
 }
 
 
+// Get a list of devices, formatted like:
+
+async function getDevices(req, res) {
+    try {
+        const queryStr = `SELECT value, device_id, location_specific, details, description FROM "awair_score" WHERE location_general = 'UVA' GROUP BY device_id ORDER BY time desc LIMIT 1`;
+        const dbResult = await db.query(queryStr);
+
+        if(!dbResult.success) {
+            console.error("unexpected database error:\n%s", dbResult.error);
+            res.respond(new response.http500({
+                message: "failed to execute database query"
+            }));
+            return;
+        }
+
+        if(dbResult.result.length === 0) {
+            res.respond(new response.http404({
+                message: "found no devices"
+            }));
+            return;
+        }
+
+        // const { location_specific, description, details } = dbResult.result[0];
+        // delete dbResult.result[0].location_specific;
+        // delete dbResult.result[0].description;
+        // delete dbResult.result[0].details
+        const deviceList = dbResult.result.map(device => ({
+            device_id: device.device_id,
+            location: device.location_specific,
+            description: device.description,
+            details: device.details
+        }));
+
+        res.respond(new response.http200({
+            devices: deviceList
+        }));
+
+    } catch(err) {
+        console.error("unexpected error:\n%s", err);
+        res.respond(new response.http500({
+            message: "The server could not process the request."
+        }));
+        return;
+    }
+}
+
+
 // Assign the endpoint implementations
 // to their actual respective URLs.
 module.exports = function(server, prefix) {
@@ -227,4 +274,7 @@ module.exports = function(server, prefix) {
     // These are pretty useful
     server.get(prefix + "/awair-score/:device_id/average/minutes/:minutes", originalAwairScoreTimeAggregationMinutes);
     server.get(prefix + "/custom-score/:device_id/average/minutes/:minutes", customScoresLastX);
+
+    // Endpoints to retrieve sensor listings
+    server.get(prefix + "/devices", getDevices);
 }
