@@ -1,0 +1,516 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "version": "1.1.2",
+    "title": "Awair and Informed API",
+    "description": "The Awair and Informed (AAI) API enables easy web access to our custom air quality scoring metrics, as well as existing Awair AQI measurements. Currently, sensors are deployed in Olsson and Rice halls on the grounds of the University of Virginia, with plans for expansion to more rooms and buildings in the future.",
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://awair.linklab.virginia.edu/api/v1"
+    }
+  ],
+  "paths": {
+    "/devices": {
+      "get": {
+        "summary": "Retrieve a list of all Awair devices.",
+        "tags": [
+          "Devices"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "A list of the devices Awair devices which have, at some point in time, logged data in the system.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "devices"
+                  ],
+                  "properties": {
+                    "devices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "device_id",
+                          "location",
+                          "description",
+                          "details"
+                        ],
+                        "properties": {
+                          "device_id": {
+                            "type": "string"
+                          },
+                          "location": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "details": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No devices were found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The server failed to process the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/custom-score/{device_id}/average/minutes/{minutes}": {
+      "get": {
+        "summary": "Aggregate custom scores for a device over time.",
+        "tags": [
+          "Scores"
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "description": "ID of the Awair device to retrieve custom scores for.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "minutes",
+            "in": "path",
+            "description": "Aggregate the scores between now and {minutes} minutes ago.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All available custom scoring metrics for the specified device.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "location",
+                    "description",
+                    "details",
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "algorithm",
+                          "value"
+                        ],
+                        "properties": {
+                          "algorithm": {
+                            "type": "object",
+                            "required": [
+                              "name",
+                              "version"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "version": {
+                                "type": "integer"
+                              }
+                            }
+                          },
+                          "value": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "location": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No data for the given device in the specified time range. Try more than five minutes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The server failed to process the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/awair-score/{device_id}/average/minutes/{minutes}": {
+      "get": {
+        "summary": "Aggregate Awair scores for a device over time.",
+        "tags": [
+          "Scores"
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "description": "ID of the Awair device to retrieve Awair scores for.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "minutes",
+            "in": "path",
+            "description": "Aggregate the scores between now and {minutes} minutes ago.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Average Awair score for the given device over the past {minutes} minutes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "location",
+                    "description",
+                    "details",
+                    "averageScore"
+                  ],
+                  "properties": {
+                    "averageScore": {
+                      "type": "number"
+                    },
+                    "location": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No data for the given device in the specified time range.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The server failed to process the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/awair-score/{device_id}/minutes/{minutes}": {
+      "get": {
+        "summary": "Get raw Awair scores for a device over time.",
+        "tags": [
+          "Scores"
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "description": "ID of the Awair device to retrieve Awair scores for.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "minutes",
+            "in": "path",
+            "description": "Collect all scores within the last {minutes} number of minutes.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All readings across the previous {minutes} minutes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "time",
+                          "score"
+                        ],
+                        "properties": {
+                          "time": {
+                            "$ref": "#/components/schemas/Timestamp"
+                          },
+                          "score": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No data for the given device in the specified time range.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The server failed to process the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/awair-score/{device_id}/last/{x}": {
+      "get": {
+        "summary": "Get the \"x\" most recent Awair score measurements.",
+        "tags": [
+          "Scores"
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "description": "ID of the Awair device to retrieve Awair scores for.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x",
+            "in": "path",
+            "description": "The number of most recent data points to collect.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All readings across the previous {minutes} minutes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "time",
+                          "score"
+                        ],
+                        "properties": {
+                          "time": {
+                            "$ref": "#/components/schemas/Timestamp"
+                          },
+                          "score": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No data for the given device in the specified time range.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The server failed to process the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Health check",
+        "tags": [
+          "Information"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "\\\"OK\\\" response from the API which indicates it is operating nominally.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "message"
+                  ],
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs": {
+      "get": {
+        "summary": "Retrieve API specification",
+        "tags": [
+          "Information"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The OpenAPIv3-compliant API specification.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Timestamp": {
+        "type": "string",
+        "description": "Standard ISO UTC timestamp format, e.g. \"2022-04-25T22:15:44Z\" (https://en.wikipedia.org/wiki/ISO_8601)",
+        "pattern": "\\d{4}(-\\d{2}){2}T(\\d{2}:){2}\\d{2}.\\d{3}Z"
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

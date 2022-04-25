@@ -4,6 +4,7 @@ const response = require("./responses");
 
 // Import the database query interface.
 const db = require("../../db");
+const res = require("express/lib/response");
 
 
 // Simple endpoint to prove the API is
@@ -41,7 +42,7 @@ async function originalAwairScoreInLastMinutes(req, res) {
         res.respond(new response.http200({
             data: dbResult.result.map(record => ({
                 time: record.time,
-                scores: record.value
+                score: record.value
             }))
         }));
 
@@ -81,7 +82,7 @@ async function originalAwairScoreLastX(req, res) {
         res.respond(new response.http200({
             data: dbResult.result.map(record => ({
                 time: record.time,
-                scores: record.value
+                score: record.value
             }))
         }));
 
@@ -266,15 +267,38 @@ async function getDevices(req, res) {
 // Assign the endpoint implementations
 // to their actual respective URLs.
 module.exports = function(server, prefix) {
+    // Set up the basic version housekeeping items
     server.get(prefix + "/", healthCheck);
+    
+    const docs = require("./openapi.json");
+    server.get(
+        prefix + "/docs",
+        (_, res) => res.respond(new response.http200(docs))
+    );
+
     // These are probably not very useful
-    server.get(prefix + "/awair-score/:device_id/minutes/:minutes", originalAwairScoreInLastMinutes);
-    server.get(prefix + "/awair-score/:device_id/last/:x", originalAwairScoreLastX);
+    server.get(
+        prefix + "/awair-score/:device_id/minutes/:minutes",
+        originalAwairScoreInLastMinutes
+    );
+    server.get(
+        prefix + "/awair-score/:device_id/last/:x",
+        originalAwairScoreLastX
+    );
 
     // These are pretty useful
-    server.get(prefix + "/awair-score/:device_id/average/minutes/:minutes", originalAwairScoreTimeAggregationMinutes);
-    server.get(prefix + "/custom-score/:device_id/average/minutes/:minutes", customScoresLastX);
+    server.get(
+        prefix + "/awair-score/:device_id/average/minutes/:minutes",
+        originalAwairScoreTimeAggregationMinutes
+    );
+    server.get(
+        prefix + "/custom-score/:device_id/average/minutes/:minutes",
+        customScoresLastX
+    );
 
     // Endpoints to retrieve sensor listings
-    server.get(prefix + "/devices", getDevices);
+    server.get(
+        prefix + "/devices",
+        getDevices
+    );
 }
