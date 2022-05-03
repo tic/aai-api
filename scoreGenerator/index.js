@@ -3,6 +3,7 @@ const {
     scoring: { updatePeriod }, 
     scoreTask: { measurement: influxMeasurementName } 
 } = require("../config");
+const ROLLING_INTERVAL_S = 172800;
 
 
 // Import our database module.
@@ -45,10 +46,11 @@ function dataToInfluxPoint(data) {
 async function periodicScoreUpdater() {
     try {
         console.log("task iteration started");
+        const measurements = ["Temperature_°C", "Humidity_%", "co2_ppm", "voc_ppb", "pm2.5_μg/m3"];
 
         // Query for the metrics for each category
         const metrics = await Promise.all(
-            ["Temperature_°C", "Humidity_%", "co2_ppm", "voc_ppb", "pm2.5_μg/m3"].map(async metric => {
+            measurements.map(async metric => {
                 const dbResult = await db.query(`
                 SELECT
                     MEAN(value)
@@ -65,6 +67,28 @@ async function periodicScoreUpdater() {
             })
         );
 
+        // Pull rolling averages
+        const rollingMetrics = await Promise.all(
+            measurements.map(async measurement => {
+                const dbResult = await db.query(`
+                    SELECT
+                        MEDIAN(value)
+                    FROM "${measurement}"
+                    WHERE
+                        time > now() - ${ROLLING_INTERVAL_S}s
+                    GROUP BY device_id
+                `);
+                
+                return dbResult.result.reduce(
+                    (acc, {device_id, median}) => {
+                        acc[device_id] = median;
+                        return acc;
+                    },
+                    {}
+                );
+            })
+        );
+
         // This takes the results from the first set
         // of queries and manipulates them into a
         // more useful data structure.
@@ -72,7 +96,8 @@ async function periodicScoreUpdater() {
             Object.keys(metrics[0])
             .map(device_id => [
                 device_id,
-                ...metrics.map(metricList => metricList[device_id])
+                ...metrics.map(metricList => metricList[device_id]),
+                ...rollingMetrics.map(metricList => metricList[device_id]),
             ])
             .filter(([device_id, ...metricTuple]) => {
                 if(metricTuple.indexOf(undefined) > -1) {
