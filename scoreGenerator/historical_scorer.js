@@ -38,6 +38,7 @@ const {
 // Helper function to generate influx points
 function dataToInfluxPoint(data) {
     return {
+        timestamp: data.timestamp,
         measurement: influxMeasurementName,
         tags: {
             // device_id is lower case by convention in gateway-generic
@@ -130,6 +131,7 @@ const ROLLING_INTERVAL_S = 172800;
             ].map(funcArgs => [funcArgs.join("_"), score(funcArgs[0], funcArgs[1], args)]);
 
             return dataToInfluxPoint({
+                timestamp: windowStart,
                 device_id,
                 fields: reportedScores.reduce(
                     (acc, [seriesName, score]) => {
