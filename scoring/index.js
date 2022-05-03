@@ -13,6 +13,20 @@ function precision(value) {
 }
 
 
+// Helper function to do spike scoring
+// Spike score is a measure of how much
+// a subscore is deviating from some rolling
+// average. A score of 100 indicates the 
+// current score is equal or better than 
+// that subscore's rolling average.
+// Example: If the current subscore is 86,
+//          but the average is 94, then the
+//          spike score is 92.
+function spike(subscore, averageSubscore) {
+    return Math.min(100, 100 + subscore - averageSubscore);
+}
+
+
 // Averages all component subscores for
 // a somewhat blended sort of AQI.
 function balancedAQI(temperatureC, humidityPct, co2Ppm, vocPpb, pm25UgL) {
@@ -55,6 +69,68 @@ function environmentalAQIF21(temperatureC, humidityPct, co2Ppm, vocPpb, pm25UgL)
 }
 
 
+// Measures CO2 and VOC spikes to determine an
+// occupancy-factors-based air quality score.
+function occupationalAQIV1(_, _, co2Ppm, vocPpb, _, _, _, co2Avg, vocAvg, _) {
+    const co2Score = subscore.getCo2Subscore(co2Ppm);
+    const rollingCo2Score = subscore.getCo2Subscore(co2Avg);
+    const vocScore = subscore.getVocSubscore(vocPpb);
+    const rollingVocScore = subscore.getVocSubscore(vocAvg);
+
+    const rawScore = (
+        0.500 * spike(co2Score, rollingCo2Score) +
+        0.500 * spike(vocScore, rollingVocScore)
+    );
+    return precision(rawScore);
+}
+
+
+// Balances current and trending environmental
+// measurements to calculate an environment-factors
+// -based air quality score.
+function environmentalAQIV1(temperatureC, _, _, _, pm25UgL, _, humidityAvg, co2Avg, vocAvg, _) {
+    const rawScore = (
+        0.200 * subscore.getTemperatureSubscore(temperatureC) +
+        0.200 * subscore.getHumiditySubscore(humidityAvg) +
+        0.200 * subscore.getCo2Subscore(co2Avg) +
+        0.200 * subscore.getVocSubscore(vocAvg) +
+        0.200 * subscore.getPm25Subscore(pm25UgL)
+    );
+    return precision(rawScore);
+}
+
+
+// The deviance index measures how abnormal the
+// current air quality is compared to some rolling
+// average of the given space.
+function devianceIndexV1(temperatureC, humidityPct, co2Ppm, vocPpb, pm25UgL, temperatureAvg, humidityAvg, co2Avg, vocAvg, pm25Avg) {
+    const rawScore = (
+        0.200 * spike(
+            subscore.getTemperatureSubscore(temperatureC),
+            subscore.getTemperatureSubscore(temperatureAvg)
+        ) + 
+        0.200 * spike(
+            subscore.getHumiditySubscore(humidityPct),
+            subscore.getHumiditySubscore(humidityAvg)
+        ) + 
+        0.200 * spike(
+            subscore.getCo2Subscore(co2Ppm),
+            subscore.getCo2Subscore(co2Avg)
+        ) + 
+        0.200 * spike(
+            subscore.getVocSubscore(vocPpb),
+            subscore.getVocSubscore(vocAvg)
+        ) + 
+        0.200 * spike(
+            subscore.getPm25Subscore(pm25UgL),
+            subscore.getPm25Subscore(pm25Avg)
+        )
+    );
+    return precision(rawScore);
+}
+
+
+
 // 
 // =============================================================================
 // 
@@ -66,10 +142,15 @@ const scoreFunctions = {
         v0: balancedAQI
     },
     occupational: {
-        v0: occupationalAQIF21
+        v0: occupationalAQIF21,
+        v1: occupationalAQIV1
     },
     environmental: {
-        v0: environmentalAQIF21
+        v0: environmentalAQIF21,
+        v1: environmentalAQIV1
+    },
+    deviance: {
+        v1: devianceIndexV1
     }
 }
 
