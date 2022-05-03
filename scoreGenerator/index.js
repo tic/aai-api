@@ -93,6 +93,9 @@ async function periodicScoreUpdater() {
                     ["balanced", "v0"],
                     ["occupational", "v0"],
                     ["environmental", "v0"],
+                    ["occupational", "v1"],
+                    ["environmental", "v1"],
+                    ["deviance", "v1"],
                 ].map(args => [args.join("_"), score(args[0], args[1], metricValues)]);
 
                 // Create an influx point with the data
