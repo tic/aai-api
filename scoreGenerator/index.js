@@ -1,9 +1,9 @@
 // Import what we need from the config file.
 const { 
-    scoring: { updatePeriod }, 
+    scoring: { updatePeriod, rollingInterval }, 
     scoreTask: { measurement: influxMeasurementName } 
 } = require("../config");
-const ROLLING_INTERVAL_S = 172800;
+const measurements = ["Temperature_°C", "Humidity_%", "co2_ppm", "voc_ppb", "pm2.5_μg/m3"];
 
 
 // Import our database module.
@@ -40,13 +40,48 @@ function dataToInfluxPoint(data) {
 }
 
 
+// Helper function which retrieves rolling metrics
+// when the cached values become stale. Values are
+// elligible for usage for 15 minutes and are then
+// refreshed with new rolling averages.
+var rollingMetricUpdateTime = 0;
+var rollingMetrics = [];
+async function getRollingMetrics() {
+    const now = new Date().getTime();
+    if(now - rollingMetricUpdateTime > 900000) {
+        console.log("===== updating rolling metrics =====");
+        rollingMetrics = await Promise.all(
+            measurements.map(async measurement => {
+                const dbResult = await db.query(`
+                    SELECT
+                        MEDIAN(value)
+                    FROM "${measurement}"
+                    WHERE
+                        time > now() - ${rollingInterval}s
+                    GROUP BY device_id
+                `);
+                
+                return dbResult.result.reduce(
+                    (acc, {device_id, median}) => {
+                        acc[device_id] = median;
+                        return acc;
+                    },
+                    {}
+                );
+            })
+        );
+        rollingMetricUpdateTime = now;
+    }
+    return rollingMetrics;
+}
+
+
 // Future location of the periodic task which fetches
 // data from LLL, computes our AQI scores, and pushes
 // the results of the calculcations back to LLL.
 async function periodicScoreUpdater() {
     try {
         console.log("task iteration started");
-        const measurements = ["Temperature_°C", "Humidity_%", "co2_ppm", "voc_ppb", "pm2.5_μg/m3"];
 
         // Query for the metrics for each category
         const metrics = await Promise.all(
@@ -68,29 +103,10 @@ async function periodicScoreUpdater() {
         );
 
         // Pull rolling averages
-        const rollingMetrics = await Promise.all(
-            measurements.map(async measurement => {
-                const dbResult = await db.query(`
-                    SELECT
-                        MEDIAN(value)
-                    FROM "${measurement}"
-                    WHERE
-                        time > now() - ${ROLLING_INTERVAL_S}s
-                    GROUP BY device_id
-                `);
-                
-                return dbResult.result.reduce(
-                    (acc, {device_id, median}) => {
-                        acc[device_id] = median;
-                        return acc;
-                    },
-                    {}
-                );
-            })
-        );
+        const rollingMetrics = await getRollingMetrics();
 
-        // This takes the results from the first set
-        // of queries and manipulates them into a
+        // This takes the results from the two
+        // queries and manipulates them into a
         // more useful data structure.
         const groupedMetrics = 
             Object.keys(metrics[0])
