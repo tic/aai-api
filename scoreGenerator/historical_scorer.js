@@ -31,7 +31,8 @@ const score = require("../scoring");
 
 // Import what we need from the config file.
 const {
-    scoreTask: { measurement: influxMeasurementName } 
+    scoreTask: { measurement: influxMeasurementName },
+    scoring: { rollingInterval }
 } = require("../config");
 
 
@@ -51,7 +52,6 @@ function dataToInfluxPoint(data) {
 
 // 
 const measurements = ["Temperature_°C", "Humidity_%", "co2_ppm", "voc_ppb", "pm2.5_μg/m3"];
-const ROLLING_INTERVAL_S = 172800;
 
 // 
 (async function() {
@@ -91,7 +91,7 @@ const ROLLING_INTERVAL_S = 172800;
                         MEDIAN(value)
                     FROM "${measurement}"
                     WHERE
-                        time > ${windowEnd - (ROLLING_INTERVAL_S * 1000 * 1000000)} AND
+                        time > ${windowEnd - (rollingInterval * 1000 * 1000000)} AND
                         time < ${windowEnd}
                     GROUP BY device_id
                 `);
