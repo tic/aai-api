@@ -32,7 +32,7 @@ const score = require("../scoring");
 // Import what we need from the config file.
 const {
     scoreTask: { measurement: influxMeasurementName },
-    scoring: { rollingInterval }
+    scoring: { updatePeriod, rollingInterval }
 } = require("../config");
 
 
@@ -52,13 +52,69 @@ function dataToInfluxPoint(data) {
 
 // 
 const measurements = ["Temperature_°C", "Humidity_%", "co2_ppm", "voc_ppb", "pm2.5_μg/m3"];
+const trackedScores = [
+    // ["balanced", "v0"],
+    // ["occupational", "v0"],
+    // ["environmental", "v0"],
+    // ["occupational", "v1"],
+    // ["environmental", "v1"],
+    // ["deviance", "v1"],
+    ["occupational", "v2"]
+];
+const gradientTypes = trackedScores.reduce(
+    (acc, [cur, _]) => {
+        if(acc.indexOf(cur) === -1) {
+            acc.push(cur);
+        }
+        return acc;
+    },
+    []
+);
+
+// Computes the gradient for the given score version,
+// uniquely represented as an Influx "measurement".
+async function getScoreGradients(scoreType) {
+    const measurement = scoreType + "_v1";
+    const dbResult = await db.query(`
+        SELECT
+            ${measurement}
+        FROM "awair_informed"
+        WHERE
+            time > now() - ${(updatePeriod / 1000) * 3}s
+        GROUP BY device_id
+        ORDER BY time desc
+        LIMIT 2
+    `);
+
+    return Object.entries(dbResult.result.reduce(
+        (acc, cur) => {
+            // Compute the gradient for the score on each device
+            if(acc[cur.device_id] !== undefined) {
+                const rawGradient = acc[cur.device_id][1] - cur[measurement];
+                const adjGradient = rawGradient * (60000 / updatePeriod);
+                acc[cur.device_id] = [true, adjGradient];
+            } else {
+                acc[cur.device_id] = [false, cur[measurement]];
+            }
+            return acc;
+        },
+        {}
+    )).filter(entry => entry[1][0] === true)
+    .reduce(
+        (acc, [device_id, [_, gradient]]) => {
+            acc[device_id] = gradient;
+            return acc;
+        },
+        {}
+    );
+}
 
 // 
 (async function() {
     let windowStart = rangeStart;
     let windowEnd;
     while(windowStart < rangeEnd) {
-        windowEnd = windowStart + 300000000000;
+        windowEnd = windowStart + (updatePeriod * 1000000);
 
         // Pull the readings from the current window
         const rawMetrics = await Promise.all(
@@ -105,9 +161,18 @@ const measurements = ["Temperature_°C", "Humidity_%", "co2_ppm", "voc_ppb", "pm
                 );
             })
         );
+
+        const gradients = (await Promise.all(
+            gradientTypes.map(gradientType => getScoreGradients(gradientType))
+        )).reduce(
+            (acc, cur, index) => {
+                acc[gradientTypes[index]] = cur;
+                return acc;
+            },
+            {}
+        );
         
         // Conduct scoring operations
-        
         const influxPointsRaw = Object.keys(rawMetrics[0]).map(device_id => {
             const args1 = rawMetrics.map(obj => obj[device_id]);
     
@@ -121,14 +186,16 @@ const measurements = ["Temperature_°C", "Humidity_%", "co2_ppm", "voc_ppb", "pm
             ];
     
             // Compute our new scores
-            const reportedScores = [
-                // ["balanced", "v0"],
-                // ["occupational", "v0"],
-                // ["environmental", "v0"],
-                ["occupational", "v1"],
-                ["environmental", "v1"],
-                ["deviance", "v1"],
-            ].map(funcArgs => [funcArgs.join("_"), score(funcArgs[0], funcArgs[1], args)]);
+            const reportedScores = trackedScores.map(
+                funcArgs => [
+                    funcArgs.join("_"),
+                    score(
+                        funcArgs[0],
+                        funcArgs[1],
+                        [...args, gradients[funcArgs[0]][device_id]]
+                    )
+                ]
+            );
 
             return dataToInfluxPoint({
                 timestamp: windowStart,
@@ -148,6 +215,6 @@ const measurements = ["Temperature_°C", "Humidity_%", "co2_ppm", "voc_ppb", "pm
         );
         
         console.log("> processed up to %d", windowEnd / 1000000);
-        windowStart += 300000000000;
+        windowStart += (updatePeriod * 1000000);
     }
 })();
