@@ -3,7 +3,29 @@ const {
     scoring: { updatePeriod, rollingInterval }, 
     scoreTask: { measurement: influxMeasurementName } 
 } = require("../config");
+
+
+// Some constants that regulate
+// the script's behavior.
 const measurements = ["Temperature_°C", "Humidity_%", "co2_ppm", "voc_ppb", "pm2.5_μg/m3"];
+const trackedScores = [
+    ["balanced", "v0"],
+    ["occupational", "v0"],
+    ["environmental", "v0"],
+    ["occupational", "v1"],
+    ["environmental", "v1"],
+    ["deviance", "v1"],
+    ["occupational", "v2"]
+];
+const gradientTypes = trackedScores.reduce(
+    (acc, [cur, _]) => {
+        if(acc.indexOf(cur) === -1) {
+            acc.push(cur);
+        }
+        return acc;
+    },
+    []
+);
 
 
 // Import our database module.
@@ -48,7 +70,7 @@ var rollingMetricUpdateTime = 0;
 var rollingMetrics = [];
 async function getRollingMetrics() {
     const now = new Date().getTime();
-    if(now - rollingMetricUpdateTime > 900000) {
+    if(now - rollingMetricUpdateTime > rollingInterval * 1000) {
         console.log("===== updating rolling metrics =====");
         rollingMetrics = await Promise.all(
             measurements.map(async measurement => {
@@ -71,8 +93,48 @@ async function getRollingMetrics() {
             })
         );
         rollingMetricUpdateTime = now;
+        console.log("=====     update complete!     =====");
     }
     return rollingMetrics;
+}
+
+
+// Computes the gradient for the given score version,
+// uniquely represented as an Influx "measurement".
+async function getScoreGradients(scoreType) {
+    const measurement = scoreType + "_v1";
+    const dbResult = await db.query(`
+        SELECT
+            ${measurement}
+        FROM "awair_informed"
+        WHERE
+            time > now() - ${(updatePeriod / 1000) * 3}s
+        GROUP BY device_id
+        ORDER BY time desc
+        LIMIT 2
+    `);
+
+    return Object.entries(dbResult.result.reduce(
+        (acc, cur) => {
+            // Compute the gradient for the score on each device
+            if(acc[cur.device_id] !== undefined) {
+                const rawGradient = acc[cur.device_id][1] - cur[measurement];
+                const adjGradient = rawGradient * (60000 / updatePeriod);
+                acc[cur.device_id] = [true, adjGradient];
+            } else {
+                acc[cur.device_id] = [false, cur[measurement]];
+            }
+            return acc;
+        },
+        {}
+    )).filter(entry => entry[1][0] === true)
+    .reduce(
+        (acc, [device_id, [_, gradient]]) => {
+            acc[device_id] = gradient;
+            return acc;
+        },
+        {}
+    );
 }
 
 
@@ -100,6 +162,16 @@ async function periodicScoreUpdater() {
                 }
                 return deviceIdMap;
             })
+        );
+
+        const gradients = (await Promise.all(
+            gradientTypes.map(gradientType => getScoreGradients(gradientType))
+        )).reduce(
+            (acc, cur, index) => {
+                acc[gradientTypes[index]] = cur;
+                return acc;
+            },
+            {}
         );
 
         // Pull rolling averages
@@ -130,14 +202,16 @@ async function periodicScoreUpdater() {
                 logMetricData(device_id, metricValues);
 
                 // Compute our new scores
-                const reportedScores = [
-                    ["balanced", "v0"],
-                    ["occupational", "v0"],
-                    ["environmental", "v0"],
-                    ["occupational", "v1"],
-                    ["environmental", "v1"],
-                    ["deviance", "v1"],
-                ].map(args => [args.join("_"), score(args[0], args[1], metricValues)]);
+                const reportedScores = trackedScores.map(
+                    args => [
+                        args.join("_"),
+                        score(
+                            args[0],
+                            args[1],
+                            [...metricValues, gradients[args[0]][device_id]]
+                        )
+                    ]
+                );
 
                 // Create an influx point with the data
                 return dataToInfluxPoint({
