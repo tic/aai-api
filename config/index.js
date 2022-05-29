@@ -16,7 +16,8 @@ const config = {
     scoring: {
         precision: parseInt(parsedEnv.SCORE_PRECISION),
         updatePeriod: parseInt(parsedEnv.SCORE_UPDATE_TASK_PERIOD),
-        rollingInterval: parseInt(parsedEnv.ROLLING_INTERVAL_S)
+        rollingInterval: parseInt(parsedEnv.ROLLING_INTERVAL_S),
+        scoreTesting: parsedEnv.SCORE_TESTING === "true"
     },
     api: {
         port: parseInt(parsedEnv.API_PORT ?? 3000)

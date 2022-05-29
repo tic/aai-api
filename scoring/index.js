@@ -149,7 +149,7 @@ function occupationalAQIV2(_, _, co2Ppm, vocPpb, _, _, _, co2Avg, vocAvg, _, sco
     // If the gradient is "large" (value determined experimentally),
     // then we need to apply the gradient boosting mechanic.
     if(scoreGradientV1 > 0.2) {
-        const boosted = unboosted + scoreGradientV1 * 25;
+        const boosted = unboosted + scoreGradientV1 * 6;
         return Math.min(boosted, 100);
     }
 
@@ -172,7 +172,7 @@ const scoreFunctions = {
     occupational: {
         v0: occupationalAQIF21,
         v1: occupationalAQIV1,
-        v2: occupationalAQIV2
+        v3: occupationalAQIV2
     },
     environmental: {
         v0: environmentalAQIF21,
