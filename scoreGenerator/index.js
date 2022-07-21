@@ -15,7 +15,7 @@ const trackedScores = [
     ["occupational", "v1"],
     ["environmental", "v1"],
     ["deviance", "v1"],
-    ["occupational", "v2"]
+    ["occupational", "v3"]
 ];
 const gradientTypes = trackedScores.reduce(
     (acc, [cur, _]) => {
@@ -103,34 +103,52 @@ async function getRollingMetrics() {
 // uniquely represented as an Influx "measurement".
 async function getScoreGradients(scoreType) {
     const measurement = scoreType + "_v1";
+    const aggregateSize = 6;
     const dbResult = await db.query(`
         SELECT
             ${measurement}
         FROM "awair_informed"
         WHERE
-            time > now() - ${(updatePeriod / 1000) * 3}s
+            time < ${windowEnd}
         GROUP BY device_id
         ORDER BY time desc
-        LIMIT 2
+        LIMIT ${aggregateSize}
     `);
 
-    return Object.entries(dbResult.result.reduce(
+    const scoresByDeviceId = dbResult.result.reduce(
         (acc, cur) => {
-            // Compute the gradient for the score on each device
-            if(acc[cur.device_id] !== undefined) {
-                const rawGradient = acc[cur.device_id][1] - cur[measurement];
-                const adjGradient = rawGradient * (60000 / updatePeriod);
-                acc[cur.device_id] = [true, adjGradient];
+            if(acc[cur.device_id] === undefined) {
+                acc[cur.device_id] = [[cur[measurement], cur.time.getTime()]];
             } else {
-                acc[cur.device_id] = [false, cur[measurement]];
+                acc[cur.device_id].push([cur[measurement], cur.time.getTime()]);
             }
             return acc;
         },
         {}
-    )).filter(entry => entry[1][0] === true)
-    .reduce(
-        (acc, [device_id, [_, gradient]]) => {
-            acc[device_id] = gradient;
+    );
+
+    return Object.entries(scoresByDeviceId).reduce(
+        (acc, [deviceId, scores]) => {
+            const seenTimestamps = {};
+            scores = scores.filter(score => {
+              if (seenTimestamps[score[1]] === undefined) {
+                seenTimestamps[score[1]] = true;
+                return true;
+              }
+              return false;
+            })
+            if(scores.length < 2) {
+                return 0;
+            }
+            const gradients = [];
+            for (let i = 1; i < scores.length; i++) {
+              const valueDifference = scores[i][0] - scores[i - 1][0];
+              const timeDifference = scores[i][1] - scores[i - 1][1];
+              gradients.push(60000 * valueDifference / timeDifference);
+            }
+            const averageGradient = gradients.reduce((gradientSum, gradient) => gradientSum + gradient, 0) / gradients.length;
+            // console.log(scores, '|', gradients, '|', averageGradient);
+            acc[deviceId] = averageGradient;
             return acc;
         },
         {}

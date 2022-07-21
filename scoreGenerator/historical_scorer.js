@@ -52,7 +52,7 @@ function dataToInfluxPoint(data) {
     // scoring techniques to make plotting the
     // results in Grafana :)
     if(scoreTesting === true) {
-        datapoint.tags.filter = "4";
+        datapoint.tags.filter = "7";
     }
 
     return datapoint;
@@ -62,13 +62,13 @@ function dataToInfluxPoint(data) {
 // 
 const measurements = ["Temperature_°C", "Humidity_%", "co2_ppm", "voc_ppb", "pm2.5_μg/m3"];
 const trackedScores = [
-    ["balanced", "v0"],
-    ["occupational", "v0"],
-    ["environmental", "v0"],
-    ["occupational", "v1"],
-    ["environmental", "v1"],
-    ["deviance", "v1"],
-    // ["occupational", "v3"] // Currently under development
+    // ["balanced", "v0"],
+    // ["occupational", "v0"],
+    // ["environmental", "v0"],
+    // ["occupational", "v1"],
+    // ["environmental", "v1"],
+    // ["deviance", "v1"],
+    ["occupational", "v3"] // Currently under development
 ];
 const gradientTypes = trackedScores.reduce(
     (acc, [cur, _]) => {
@@ -113,16 +113,26 @@ async function getScoreGradients(scoreType, windowEnd) {
 
     return Object.entries(scoresByDeviceId).reduce(
         (acc, [deviceId, scores]) => {
-            const score1 = scores[0];
-            const score2 = scores[aggregateSize - 1];
-            if(score1 === undefined || score2 === undefined) {
+            const seenTimestamps = {};
+            scores = scores.filter(score => {
+              if (seenTimestamps[score[1]] === undefined) {
+                seenTimestamps[score[1]] = true;
+                return true;
+              }
+              return false;
+            })
+            if(scores.length < 2) {
                 return 0;
             }
-
-            const rawGradient = score2[0] - score1[0];
-            const regularizationFactor = 60000 / (score2[1] - score1[1])
-            const adjGradient = rawGradient * regularizationFactor;
-            acc[deviceId] = adjGradient;
+            const gradients = [];
+            for (let i = 1; i < scores.length; i++) {
+              const valueDifference = scores[i][0] - scores[i - 1][0];
+              const timeDifference = scores[i][1] - scores[i - 1][1];
+              gradients.push(60000 * valueDifference / timeDifference);
+            }
+            const averageGradient = gradients.reduce((gradientSum, gradient) => gradientSum + gradient, 0) / gradients.length;
+            // console.log(scores, '|', gradients, '|', averageGradient);
+            acc[deviceId] = averageGradient;
             return acc;
         },
         {}
@@ -271,7 +281,12 @@ async function getScoreGradients(scoreType, windowEnd) {
         await db.write(
             influxPointsRaw.filter(p => p !== false)
         );
-        
+        // console.log(influxPointsRaw.filter(p => p !== false));
+        // console.log(
+        //     influxPointsRaw.filter(item => item !== false && ["70886b1234a0", "70886b123b81"].includes(item.tags.device_id))
+        //     .map(item => item.fields.testscores_v0)
+        // );
+
         // Log our progress
         const datestr = /.* (.*) [AP]M/.exec(new Date(windowEnd / 1000000).toLocaleString())[1]
         console.log("> processed up to %d (%s)", windowEnd / 1000000, datestr);
